@@ -1,0 +1,13 @@
+cat > .gitignore << 'EOF'
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+mlruns/
+logs/
+data/raw/
+*.log
+.env
+Problem_Statement.txt
+mlflow.db
+EOF

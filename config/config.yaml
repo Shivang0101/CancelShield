@@ -1,0 +1,186 @@
+project:
+  name: CancelShield
+  version: "1.0.0"
+  description: "Booking Cancellation Intelligence & Revenue Protection System"
+
+data:
+  raw_path: "data/raw/hotel_bookings.csv"
+  processed_path: "data/processed/"
+  leakage_columns:
+    - "is_canceled"
+    - "reservation_status"
+    - "reservation_status_date"
+    - "assigned_room_type"
+  expected_columns:
+    - hotel
+    - is_canceled
+    - lead_time
+    - arrival_date_year
+    - arrival_date_month
+    - arrival_date_week_number
+    - arrival_date_day_of_month
+    - stays_in_weekend_nights
+    - stays_in_week_nights
+    - adults
+    - children
+    - babies
+    - meal
+    - country
+    - market_segment
+    - distribution_channel
+    - is_repeated_guest
+    - previous_cancellations
+    - previous_bookings_not_canceled
+    - reserved_room_type
+    - assigned_room_type
+    - booking_changes
+    - deposit_type
+    - agent
+    - company
+    - days_in_waiting_list
+    - customer_type
+    - adr
+    - required_car_parking_spaces
+    - total_of_special_requests
+  time_split:
+    train_end_year: 2016
+    val_year: 2017
+    val_end_month: 6
+    test_start_month: 7
+
+features:
+  module1:
+    target: "is_canceled"
+    numeric_features:
+      - lead_time
+      - stays_in_weekend_nights
+      - stays_in_week_nights
+      - adults
+      - children
+      - previous_cancellations
+      - previous_bookings_not_canceled
+      - booking_changes
+      - days_in_waiting_list
+      - adr
+      - required_car_parking_spaces
+      - total_of_special_requests
+    categorical_features:
+      - hotel
+      - meal
+      - market_segment
+      - distribution_channel
+      - reserved_room_type
+      - assigned_room_type
+      - deposit_type
+      - customer_type
+    engineered_features:
+      - cancel_rate_history
+      - total_guests
+      - total_nights
+      - lead_time_bucket
+      - is_weekend_heavy
+      - booking_month_sin
+      - booking_month_cos
+      - special_request_score
+      - high_risk_channel
+  module2:
+    target: "adr"
+    clip_adr_min: 0
+    clip_adr_max: 5000
+
+models:
+  classifiers:
+    logistic_regression:
+      C: 1.0
+      max_iter: 1000
+      class_weight: "balanced"
+      solver: "lbfgs"
+    xgboost:
+      n_estimators: 300
+      max_depth: 6
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+      use_label_encoder: false
+      eval_metric: "auc"
+    lightgbm:
+      n_estimators: 300
+      max_depth: 6
+      learning_rate: 0.05
+      num_leaves: 63
+      subsample: 0.8
+      colsample_bytree: 0.8
+      class_weight: "balanced"
+      verbose: -1
+    mlp:
+      hidden_layer_sizes: [256, 128, 64]
+      activation: "relu"
+      max_iter: 500
+      early_stopping: true
+      validation_fraction: 0.1
+      random_state: 42
+    random_forest:
+      n_estimators: 200
+      max_depth: 10
+      class_weight: "balanced"
+      n_jobs: -1
+      random_state: 42
+    decision_tree:
+      max_depth: 8
+      class_weight: "balanced"
+      random_state: 42
+    cnn1d:
+      epochs: 30
+      batch_size: 256
+      learning_rate: 0.001
+      dropout: 0.3
+  regressors:
+    linear:
+      fit_intercept: true
+    xgboost:
+      n_estimators: 300
+      max_depth: 6
+      learning_rate: 0.05
+      subsample: 0.8
+    lightgbm:
+      n_estimators: 300
+      max_depth: 6
+      learning_rate: 0.05
+      num_leaves: 63
+      verbose: -1
+    mlp:
+      hidden_layer_sizes: [256, 128, 64]
+      activation: "relu"
+      max_iter: 500
+      early_stopping: true
+      random_state: 42
+  cross_validation:
+    n_splits: 5
+    shuffle: false
+
+threshold:
+  default: 0.46
+  optimization_metric: "f1"
+  cost_fn_miss_cancel: 112.0
+  cost_fn_false_alarm: 15.0
+
+mlflow:
+  tracking_uri: "file:///home/shivang/projects/Hotel/mlruns"
+  experiment_name: "CancelShield"
+  classifier_registry_name: "CancelShield-Classifier"
+  regressor_registry_name: "CancelShield-ADR"
+
+overbooking:
+  default_risk_tolerance: 0.5
+  walk_cost_multiplier: 2.0
+  empty_cost_multiplier: 1.0
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8050
+  api_base_url: "http://api:8000"
