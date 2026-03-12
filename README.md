@@ -193,27 +193,6 @@ open http://localhost:5000
 ---
 
 ## 📈 Expected Results
+  --- to be updated
 
-| Model | Metric | Expected Value |
-|-------|--------|---------------|
-| XGBoost Classifier | Val AUC | 0.87+ |
-| LightGBM Regressor | Val MAE | ~21 EUR |
-| Threshold (cost-optimal) | Tuned | ~0.38–0.45 |
-| Revenue protected | Per 1k bookings | €8,000–12,000 |
 
----
-
-## 🎓 Interview Talking Points
-
-- **"Why not random split?"** — Time-series business data; 2017 patterns would leak into 2016 training. Time split simulates production: train on past, predict future.
-- **"Why SHAP?"** — Shapley values from cooperative game theory; only method satisfying all desirable explainability axioms. TreeSHAP runs in O(TLD²).
-- **"Why Poisson for overbooking?"** — By the Poisson limit theorem, sum of n independent Bernoulli(p_i) random variables → Poisson(Σp_i) as n grows.
-- **"What's the business impact?"** — Every 1,000 bookings screened at optimal threshold recovers ~€10,000 in revenue that would have been lost to undetected cancellations.
-
----
-
-## 📝 Resume Line
-
-> *Built CancelShield, an end-to-end ML platform predicting hotel booking cancellations (XGBoost, AUC 0.87) and optimal room pricing (LightGBM, MAE 21 EUR), with SHAP explainability, revenue-at-risk quantification, overbooking optimisation engine, FastAPI serving, Plotly Dash dashboard, and MLflow experiment tracking — deployed via Docker Compose.*
-
----
