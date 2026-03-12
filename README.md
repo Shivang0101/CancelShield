@@ -1,7 +1,7 @@
 # 🛡️ CancelShield
 ### Booking Cancellation Intelligence & Revenue Protection System
 
-> *"Predicting hotel booking cancellations with 87%+ AUC, quantifying revenue at risk in EUR, and recommending optimal overbooking buffers — the same problem Expedia and Booking.com solve in production."*
+> *"Predicting hotel booking cancellations with 80%+ AUC, quantifying revenue at risk in EUR, and recommending optimal overbooking buffers — the same problem Expedia and Booking.com solve in production."*
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green)](https://fastapi.tiangolo.com)
@@ -18,7 +18,7 @@ CancelShield solves this with three layers of ML intelligence:
 
 | Module | Question | ML Type | Target Metric |
 |--------|----------|---------|---------------|
-| **Module 1** | Will this booking cancel? | XGBoost Classification | AUC ≥ 0.87 |
+| **Module 1** | Will this booking cancel? | XGBoost Classification | AUC ≥ 0.80 |
 | **Module 2** | What should this room cost? | LightGBM Regression | MAE ≤ 22 EUR |
 | **Module 3** | How many rooms to overbook? | Cost-Ratio Optimisation | Revenue-maximising buffer |
 
