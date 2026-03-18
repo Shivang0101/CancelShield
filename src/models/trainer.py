@@ -1,7 +1,4 @@
 """
-src/models/trainer.py
-=====================
-CancelShield Model Trainer
 Trains all classifiers (Module 1) and regressors (Module 2),
 logs every experiment to MLflow, and registers the best models.
 
@@ -55,14 +52,10 @@ def load_config() -> dict:
     with open(CONFIG_PATH) as f:
         return yaml.safe_load(f)
 
-# CNN-1D for Tabular Data (PyTorch)
+# CNN-1D for Tabular Data
 
 class CNN1DClassifier:
     """
-    1-D Convolutional Neural Network for tabular classification.
-    Treats each feature as a 'channel' along the 1D sequence length of 1.
-    Useful for capturing local feature interactions.
-
     Architecture:
         Input → [N_features, 1]
         Conv1D(32, kernel=3) → ReLU → MaxPool
@@ -350,7 +343,7 @@ def train_classifiers(
         logger.info("Training classifier: %s ...", name)
 
         with mlflow.start_run(run_name=f"cls_{name}"):
-            # ---- Train ----
+            # Train 
             if name == "cnn1d":
                 model.fit(X_tr, y_tr, X_val=X_v, y_val=y_v)
                 val_proba = model.predict_proba(X_v)[:, 1]
@@ -380,7 +373,7 @@ def train_classifiers(
                 model.fit(X_tr_s, y_tr)
                 val_proba = model.predict_proba(X_v_s)[:, 1]
 
-            # ---- Metrics ----
+            # Metrics 
             val_preds = (val_proba >= 0.5).astype(int)
             val_auc = roc_auc_score(y_v, val_proba)
             val_f1 = f1_score(y_v, val_preds, zero_division=0)
@@ -396,7 +389,7 @@ def train_classifiers(
                 cv_metrics = cross_validate_classifier(model, X_train, y_train, model_name=name)
                 metrics.update(cv_metrics)
 
-            # ---- MLflow log params ----
+            # MLflow log params 
             mlflow.log_param("model_name", name)
             mlflow.log_param("module", "1_classification")
             mlflow.log_param("n_features", X_train.shape[1])
@@ -406,7 +399,7 @@ def train_classifiers(
                 for k, v in model.get_params().items():
                     mlflow.log_param(k, v)
 
-            # ---- MLflow log metrics ----
+            # MLflow log metrics 
             for k, v in metrics.items():
                 mlflow.log_metric(k, v)
 
@@ -475,7 +468,7 @@ def train_regressors(
         logger.info("Training regressor: %s ...", name)
 
         with mlflow.start_run(run_name=f"reg_{name}"):
-            # ---- Scale for linear models ----
+            # Scale for linear models 
             scaler = StandardScaler()
             X_tr_s = scaler.fit_transform(X_tr) if name in ("linear_regression", "mlp") else X_tr
             X_v_s = scaler.transform(X_v) if name in ("linear_regression", "mlp") else X_v
@@ -496,7 +489,7 @@ def train_regressors(
                 val_preds = model.predict(X_v_s)
             val_preds = model.predict(X_v_s)
 
-            # ---- Metrics ----
+            # Metrics 
             val_mae = mean_absolute_error(y_v, val_preds)
             val_rmse = np.sqrt(mean_squared_error(y_v, val_preds))
             val_r2 = r2_score(y_v, val_preds)
@@ -507,7 +500,7 @@ def train_regressors(
                 cv_metrics = cross_validate_regressor(model, X_train, y_train, model_name=name)
                 metrics.update(cv_metrics)
 
-            # ---- MLflow log ----
+            #  MLflow log 
             mlflow.log_param("model_name", name)
             mlflow.log_param("module", "2_regression")
             mlflow.log_param("n_features", X_train.shape[1])

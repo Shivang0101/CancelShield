@@ -1,10 +1,4 @@
-# ============================================================
-# CancelShield Dockerfile
-# Base: python:3.11-slim (small, production-grade)
-# Non-root user for security
-# Layer-cache optimised: deps installed before source copy
-# ============================================================
- 
+
 FROM python:3.11-slim AS base
 
 # System dependencies
@@ -19,13 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd --create-home --shell /bin/bash cancelshield
 WORKDIR /app
 
-# ---- Install Python dependencies FIRST (Docker layer cache) ----
-# Changing source code won't invalidate this layer
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# ---- Copy source code LAST ----
+# Copy source code LAST 
 COPY --chown=cancelshield:cancelshield . .
 
 # Create necessary directories
@@ -40,9 +32,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 EXPOSE 8000
 CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
-
-
-# ---- Dashboard stage ----
-FROM base AS dashboard
-EXPOSE 8050
-CMD ["python", "src/dashboard/app.py"]

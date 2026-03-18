@@ -1,7 +1,4 @@
 """
-src/data/features.py
-====================
-CancelShield Feature Engineering
 Two separate feature builders — one per module — to keep feature sets clean
 and prevent cross-module leakage.
 
@@ -32,7 +29,7 @@ MONTH_ORDER = {
 
 # Channel risk scores — derived from domain knowledge & EDA
 CHANNEL_RISK = {
-    "TA/TO": 1.0,       # Travel Agents / Tour Operators: highest cancel rate
+    "TA/TO": 1.0,       # Travel Agents : highest cancel rate
     "Direct": 0.5,
     "Corporate": 0.4,
     "GDS": 0.7,
@@ -57,18 +54,10 @@ MEAL_COST = {"BB": 10, "HB": 25, "FB": 40, "SC": 0, "Undefined": 0}
 DEPOSIT_RISK = {"No Deposit": 0.8, "Non Refund": 0.1, "Refundable": 0.5}
 
 # Shared Utilities
-
-
 def encode_cyclical(series: pd.Series, max_val: int) -> Tuple[pd.Series, pd.Series]:
-    """
-    Cyclical (sin/cos) encoding for periodic features (month, day of week).
-
-    Why? Standard label-encoding treats January(1) and December(12) as far
-    apart, but they are adjacent. Sin/cos encoding wraps the scale.
-
-    Returns two Series: sin_encoded, cos_encoded
-    Values are bounded in [-1, 1] — guaranteed.
-    """
+    
+#    Cyclical (sin/cos) encoding for periodic features (month, day of week).
+    
     angle = 2 * np.pi * series / max_val
     return np.sin(angle), np.cos(angle)
 
@@ -115,8 +104,9 @@ def assert_no_nan(df: pd.DataFrame, name: str = "feature matrix") -> None:
     assert len(nan_cols) == 0, f"NaN values found in {name} columns: {nan_cols}"
     logger.info("%s: NaN check passed (%d features).", name, df.shape[1])
 
-# Module 1 — Cancellation Classification Features
 
+
+# Module 1 — Cancellation Classification Features
 def build_classification_features(
     df: pd.DataFrame,
     fit_encoders: bool = True,
@@ -124,7 +114,6 @@ def build_classification_features(
 ) -> Tuple[pd.DataFrame, pd.Series, dict]:
     """
     Build the feature matrix X and target y for Module 1 (cancel prediction).
-
     9 Engineered Features (on top of raw columns):
     ------------------------------------------------
     1.  cancel_rate_history   — previous_cancellations / (prev_cancel + prev_not_cancel + 1)
@@ -144,18 +133,8 @@ def build_classification_features(
     9. deposit_risk_score    — numeric mapping of deposit_type risk
                                 No Deposit = highest risk (0.8), Non Refund = lowest (0.1).
 
-    Parameters
-    ----------
-    df          : DataFrame after loader.py and impute/clip
-    fit_encoders: If True, fit label encoders on this data (use for train)
-    encoders    : Pre-fitted encoders dict (use for val/test)
-
-    Returns
-    -------
-    X           : Feature DataFrame
-    y           : Target Series (is_canceled)
-    encoders    : Dict of fitted encoders for reuse on val/test
     """
+
     df = df.copy()
     df = impute_missing(df)
     df = clip_outliers(df)
@@ -163,7 +142,7 @@ def build_classification_features(
     if encoders is None:
         encoders = {}
 
-    # ---- Target ----
+    # Target 
     y = df["is_canceled"].astype(int)
 
     total_prev = df["previous_cancellations"] + df["previous_bookings_not_canceled"] + 1
@@ -190,7 +169,7 @@ def build_classification_features(
 
     df["deposit_risk_score"] = df["deposit_type"].map(DEPOSIT_RISK).fillna(0.6)
 
-    # ---- Label encode categoricals ----
+    # Label encode categoricals 
     cat_cols = ["hotel", "meal", "market_segment", "distribution_channel",
                 "reserved_room_type", "deposit_type",
                 "customer_type"]
@@ -206,7 +185,7 @@ def build_classification_features(
                 lambda x, le=le: le.transform([x])[0] if x in le.classes_ else -1
             )
 
-    # ---- Build final feature list ----
+    # Build final feature list 
     feature_cols = [
         # Raw numeric
         "lead_time", "stays_in_weekend_nights", "stays_in_week_nights",
@@ -241,7 +220,7 @@ def build_regression_features(
     Build the feature matrix X and target y for Module 2 (ADR prediction).
 
     8 Engineered Features:
-    -----------------------
+
     1. arrival_month_sin / arrival_month_cos — cyclical month (2 features)
        Same room in August commands 3x January rate. Cyclical encoding
        keeps Dec→Jan continuity.
@@ -261,8 +240,7 @@ def build_regression_features(
     8. room_type_encoded — ordinal encoding of reserved_room_type A-H
        Room category is the single strongest ADR driver.
 
-    Note: previous_cancellations intentionally excluded from Module 2
-    features to keep the two modules cleanly separated.
+
     """
     df = df.copy()
     df = impute_missing(df)
@@ -271,7 +249,7 @@ def build_regression_features(
     if encoders is None:
         encoders = {}
 
-    # ---- Target: clip extreme ADR values ----
+    #Target: clip extreme ADR values 
     df = df[df["adr"] > 0].copy()   # Remove truly free rooms (corporate comps)
     y = df["adr"].astype(float)
     month_num = df["arrival_date_month"].map(MONTH_ORDER).fillna(6)
@@ -288,7 +266,7 @@ def build_regression_features(
 
     df["meal_plan_cost"] = df["meal"].map(MEAL_COST).fillna(0)
 
-    # ---- Room type encoding ----
+    # Room type encoding 
     if fit_encoders or "reserved_room_type" not in encoders:
         le = LabelEncoder()
         df["room_type_encoded"] = le.fit_transform(df["reserved_room_type"].astype(str))
@@ -299,10 +277,10 @@ def build_regression_features(
             lambda x, le=le: le.transform([x])[0] if x in le.classes_ else 0
         )
 
-    # ---- Hotel type encoding ----
+    # Hotel type encoding 
     df["hotel_enc"] = (df["hotel"] == "Resort Hotel").astype(int)
 
-    # ---- Market segment encoding ----
+    # Market segment encoding
     if fit_encoders or "market_segment" not in encoders:
         le2 = LabelEncoder()
         df["market_segment_enc"] = le2.fit_transform(df["market_segment"].astype(str))
@@ -318,7 +296,7 @@ def build_regression_features(
         df["stays_in_weekend_nights"] + df["stays_in_week_nights"]
     ).replace(0, 1)
 
-    # ---- Build final feature list ----
+    # Build final feature list 
     feature_cols = [
         # Raw numeric
         "stays_in_weekend_nights", "stays_in_week_nights",

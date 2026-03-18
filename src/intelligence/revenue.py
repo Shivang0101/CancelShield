@@ -1,7 +1,4 @@
 """
-src/intelligence/revenue.py
-============================
-CancelShield Revenue Intelligence
 Translates model predictions into EUR business impact.
 
 Key concepts:
@@ -19,9 +16,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-# ===========================================================================
 # Single Booking Revenue at Risk
-# ===========================================================================
 
 def booking_revenue_at_risk(
     p_cancel: float,
@@ -45,9 +40,7 @@ def booking_revenue_at_risk(
     total_nights  : stays_in_weekend_nights + stays_in_week_nights
     discount_rate : Expected rebooking recovery fraction (0-1). Default 1.0 = no rebook.
 
-    Returns
-    -------
-    Revenue at risk in EUR
+    Returns : Revenue at risk in EUR
     """
     rar = float(p_cancel) * float(adr) * float(total_nights) * float(discount_rate)
     return round(rar, 2)
@@ -62,10 +55,7 @@ def risk_level(p_cancel: float, threshold_low: float = 0.3, threshold_high: floa
     else:
         return "HIGH"
 
-
-# ===========================================================================
 # Batch Revenue at Risk (All Bookings for a Date)
-# ===========================================================================
 
 def daily_revenue_at_risk(
     bookings_df: pd.DataFrame,
@@ -112,9 +102,7 @@ def daily_revenue_at_risk(
     return df.sort_values("revenue_at_risk", ascending=False).reset_index(drop=True)
 
 
-# ===========================================================================
 # Segment Revenue Risk Breakdown
-# ===========================================================================
 
 def segment_revenue_risk(
     bookings_df: pd.DataFrame,
@@ -166,9 +154,7 @@ def segment_revenue_risk(
     return result
 
 
-# ===========================================================================
 # Expected Loss Table (Ranked Booking List)
-# ===========================================================================
 
 def expected_loss_table(
     bookings_df: pd.DataFrame,
@@ -209,9 +195,7 @@ def expected_loss_table(
     return result
 
 
-# ===========================================================================
 # Property-Level Revenue Summary
-# ===========================================================================
 
 def property_revenue_summary(
     bookings_df: pd.DataFrame,
@@ -267,10 +251,7 @@ def property_revenue_summary(
 
     return summary
 
-
-# ===========================================================================
 # Intervention ROI Calculator
-# ===========================================================================
 
 def intervention_roi(
     n_interventions: int,

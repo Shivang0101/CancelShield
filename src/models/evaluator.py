@@ -1,7 +1,4 @@
 """
-src/models/evaluator.py
-=======================
-CancelShield Evaluation Suite
 Full evaluation beyond the standard sklearn defaults:
   - Classification: AUC, F1, confusion matrix, calibration curve, business metric
   - Regression: MAE, RMSE, R², residual analysis, price band accuracy
@@ -45,14 +42,7 @@ def classification_report_full(
     model_name: str = "model",
     log_to_mlflow: bool = True,
 ) -> Dict[str, float]:
-    """
-    Full classification evaluation suite.
 
-    Returns
-    -------
-    dict with keys: auc, f1, precision, recall, accuracy,
-                    avg_precision, brier_score + confusion matrix counts
-    """
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(X_test)[:, 1]
     else:

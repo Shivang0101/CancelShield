@@ -1,7 +1,4 @@
 """
-src/api/main.py
-================
-CancelShield FastAPI Application
 Three production-grade REST endpoints for the CancelShield intelligence system.
 
 Endpoints:
@@ -51,10 +48,7 @@ from src.intelligence.revenue import booking_revenue_at_risk, risk_level
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-
+#config
 CONFIG_PATH = ROOT / "config" / "config.yaml"
 
 
@@ -63,10 +57,8 @@ def load_config():
         return yaml.safe_load(f)
 
 
-# ---------------------------------------------------------------------------
-# Model Loading (lazy — loaded on first request)
-# ---------------------------------------------------------------------------
 
+#Model_Loading
 _model_cache: Dict[str, Any] = {}
 
 
@@ -128,10 +120,8 @@ def load_models(config: dict):
     return _model_cache
 
 
-# ---------------------------------------------------------------------------
-# FastAPI App
-# ---------------------------------------------------------------------------
 
+#Fastapi_app
 app = FastAPI(
     title="CancelShield API",
     description=(
@@ -161,9 +151,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ---------------------------------------------------------------------------
 # Request / Response Schemas
-# ---------------------------------------------------------------------------
 
 class BookingInput(BaseModel):
     """Input schema for a single hotel booking (Module 1 + 2)."""
@@ -278,9 +266,7 @@ class OverbookingResponse(BaseModel):
     sensitivity_table: List[Dict]
 
 
-# ---------------------------------------------------------------------------
 # Helper: Build feature row from booking input
-# ---------------------------------------------------------------------------
 
 def booking_to_dataframe(booking: BookingInput) -> pd.DataFrame:
     """Convert Pydantic model to a single-row DataFrame matching loader output."""
@@ -290,7 +276,7 @@ def booking_to_dataframe(booking: BookingInput) -> pd.DataFrame:
         "arrival_date_year": booking.arrival_date_year,
         "arrival_date_month": booking.arrival_date_month,
         "arrival_date_day_of_month": booking.arrival_date_day_of_month,
-        "arrival_date_week_number": 1,  # Placeholder
+        "arrival_date_week_number": 1,  
         "stays_in_weekend_nights": booking.stays_in_weekend_nights,
         "stays_in_week_nights": booking.stays_in_week_nights,
         "adults": booking.adults,
@@ -319,9 +305,7 @@ def booking_to_dataframe(booking: BookingInput) -> pd.DataFrame:
     return pd.DataFrame([row])
 
 
-# ---------------------------------------------------------------------------
 # Endpoint 1: Predict Cancellation
-# ---------------------------------------------------------------------------
 
 @app.post("/predict-cancellation", response_model=CancellationResponse, tags=["Module 1"])
 async def predict_cancellation(booking: BookingInput):
@@ -421,10 +405,7 @@ async def predict_cancellation(booking: BookingInput):
         total_nights=total_nights,
     )
 
-
-# ---------------------------------------------------------------------------
 # Endpoint 2: Predict ADR
-# ---------------------------------------------------------------------------
 
 @app.post("/predict-adr", response_model=ADRResponse, tags=["Module 2"])
 async def predict_adr(booking: ADRInput):
@@ -527,9 +508,7 @@ async def predict_adr(booking: ADRInput):
     )
 
 
-# ---------------------------------------------------------------------------
 # Endpoint 3: Overbooking Recommendation
-# ---------------------------------------------------------------------------
 
 @app.post("/overbooking-recommendation", response_model=OverbookingResponse,
           tags=["Module 3"])
@@ -602,10 +581,6 @@ async def overbooking_recommendation(request: OverbookingInput):
     )
 
 
-# ---------------------------------------------------------------------------
-# Health Check
-# ---------------------------------------------------------------------------
-
 @app.get("/health", tags=["System"])
 async def health_check():
     return {
@@ -627,10 +602,6 @@ async def root():
         ],
     }
 
-
-# ---------------------------------------------------------------------------
-# Entry Point
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     uvicorn.run(

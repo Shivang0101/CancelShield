@@ -1,198 +1,270 @@
-# 🛡️ CancelShield
-### Booking Cancellation Intelligence & Revenue Protection System
+# CancelShield — Hotel Booking Cancellation Intelligence & Revenue Protection
 
-> *"Predicting hotel booking cancellations with 80%+ AUC, quantifying revenue at risk in EUR, and recommending optimal overbooking buffers — the same problem Expedia and Booking.com solve in production."*
-
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green)](https://fastapi.tiangolo.com)
-[![MLflow](https://img.shields.io/badge/MLflow-2.12-orange)](https://mlflow.org)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docker.com)
+A production-grade ML system that predicts hotel booking cancellations, estimates revenue at risk in EUR, and computes optimal overbooking buffers using the Cornell Hotel School cost-ratio algorithm.
 
 ---
 
-## 🎯 What CancelShield Does
+## What It Does
 
-Hotels lose **20-40% of bookings** to cancellations every year. A cancellation on the night means an empty room, no time to rebook, and direct revenue loss equal to the full nightly rate.
+Hotels lose significant revenue when guests cancel. CancelShield solves three problems:
 
-CancelShield solves this with three layers of ML intelligence:
-
-| Module | Question | ML Type | Target Metric |
-|--------|----------|---------|---------------|
-| **Module 1** | Will this booking cancel? | XGBoost Classification | AUC ≥ 0.80 |
-| **Module 2** | What should this room cost? | LightGBM Regression | MAE ≤ 22 EUR |
-| **Module 3** | How many rooms to overbook? | Cost-Ratio Optimisation | Revenue-maximising buffer |
+1. **Will this booking cancel?** — Classifies each booking and outputs a calibrated cancel probability with SHAP explanation.
+2. **How much revenue is at risk?** — Revenue at Risk = P(cancel) × ADR × nights.
+3. **How many rooms should we overbook?** — Runs the Cornell cost-ratio algorithm on the Poisson cancellation distribution to find the statistically optimal buffer.
 
 ---
 
-## 🚀 Quick Start
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        DATA PIPELINE                            │
+│  loader.py: Load CSV → Schema validation → Remove leakage      │
+│             → Time-based split (2015-2016 train / 2017 val+test)│
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+┌─────────▼─────────┐       ┌──────────▼──────────┐
+│    MODULE 1        │       │     MODULE 2          │
+│  CLASSIFICATION    │       │    REGRESSION         │
+│  9 engineered feats│       │  8 engineered feats   │
+│                    │       │                       │
+│  7 Classifiers:    │       │  4 Regressors:        │
+│  · Logistic Reg.   │       │  · Linear Regression  │
+│  · XGBoost         │       │  · XGBoost            │
+│  · LightGBM        │       │  · LightGBM           │
+│  · MLP             │       │  · MLP                │
+│  · Random Forest   │       │                       │
+│  · Decision Tree   │       │  Target: ADR (EUR)    │
+│  · CNN-1D (PyTorch)│       │                       │
+│  Target: is_canceled│      │                       │
+└─────────┬──────────┘       └──────────┬────────────┘
+          │ P(cancel)                   │ Predicted ADR
+          │                             │
+┌─────────▼─────────────────────────────▼────────────┐
+│                 INTELLIGENCE LAYER                   │
+│  revenue.py    → Revenue at Risk = P(cancel)×ADR×N │
+│  overbooking.py→ Cornell cost-ratio + Poisson dist  │
+│  explainer.py  → SHAP (Tree/Linear/Kernel factory)  │
+└─────────────────────────┬───────────────────────────┘
+                          │
+              ┌───────────▼───────────────┐
+              │        FastAPI :8000      │
+              │  POST /predict-cancellation        │
+              │  POST /predict-adr                 │
+              │  POST /overbooking-recommendation  │
+              └───────────────────────────┘
+```
+
+---
+
+## Dataset
+
+**Hotel Booking Demand** — Antonio et al., *Data in Brief*, 2019.
+119,390 real bookings from two Portuguese hotels, July 2015 – August 2017. Overall cancellation rate: ~37%.
+
+| Hotel | Bookings | Cancel Rate |
+|-------|----------|-------------|
+| City Hotel | ~79,000 | ~41% |
+| Resort Hotel | ~40,000 | ~28% |
+
+**Key cancellation drivers:**
+
+| Feature | Observation |
+|---------|-------------|
+| `deposit_type` | No Deposit → ~41% cancel; Non Refund → ~1% |
+| `lead_time` | Bookings >90 days out cancel at nearly 2× the rate of same-week bookings |
+| `market_segment` | Online TA: ~50% cancel rate |
+| `previous_cancellations` | 1+ prior cancels → ~65% cancel again |
+| `total_of_special_requests` | 0 requests: ~42% cancel. 4+ requests: ~6% cancel |
+| `is_repeated_guest` | Repeated guests cancel at ~15% — less than half the overall rate |
+
+**Leakage columns dropped before training:** `reservation_status`, `reservation_status_date`, `assigned_room_type`
+
+**Time-based split** (not random — mirrors real deployment):
+
+| Split | Period | Rows |
+|-------|--------|------|
+| Train | 2015 – end of 2016 | ~67,000 |
+| Validation | Jan – Jun 2017 | ~24,000 |
+| Test | Jul – Aug 2017 | ~28,000 |
+
+---
+
+## Module 1 — Cancellation Classification
+
+### Feature Engineering (9 features)
+
+| Feature | Formula | Business Meaning |
+|---------|---------|-----------------|
+| `cancel_rate_history` | `prev_cancels / (prev_cancels + prev_kept + 1)` | Laplace-smoothed guest cancel history |
+| `total_nights` | `weekend_nights + week_nights` | Longer stays = more committed guest |
+| `lead_time_bucket` | 7 ordinal bins | Captures non-linear cancellation risk by booking horizon |
+| `booking_month_sin/cos` | `sin/cos(2π × month / 12)` | Cyclical encoding — preserves Dec→Jan continuity |
+| `special_request_score` | `total_requests × 2 + car_parking` | Engagement proxy |
+| `deposit_risk_score` | No Deposit=0.8, Refundable=0.5, Non Refund=0.1 | Domain-knowledge risk mapping |
+
+### Models
+
+Logistic Regression · XGBoost · LightGBM · MLP · Random Forest · Decision Tree · CNN-1D (PyTorch)
+
+All use **Platt scaling** for calibrated probabilities — required so that a prediction of 0.7 genuinely means "70% of such bookings cancel", making the Revenue at Risk formula meaningful in EUR.
+
+**Threshold optimisation** minimises:
+```
+Cost = FN × €112 (missed cancellation) + FP × €15 (false alarm outreach)
+```
+Optimal threshold lands around 0.42–0.46.
+
+---
+
+## Module 2 — ADR Regression
+
+Predicts Average Daily Rate (EUR) when not yet known (e.g. new bookings before pricing is finalised).
+
+### Feature Engineering (8 features)
+
+| Feature | Formula | Business Meaning |
+|---------|---------|-----------------|
+| `arrival_month_sin/cos` | Cyclical month encoding | August commands 3× January rates |
+| `lead_time_log` | `log(1 + lead_time)` | Compresses right tail; captures early-bird and last-minute pricing |
+| `channel_premium` | Direct=1.2, Corporate=1.0, TA/TO=0.9, GDS=0.85 | Booking channel pricing tier |
+| `special_request_premium` | `requests × €8` | Correlates with premium room selection |
+| `meal_plan_cost` | BB=€10, HB=€25, FB=€40, SC=€0 | Meal cost embedded in inclusive rates |
+| `room_type_encoded` | Label encoded A–H | Single strongest ADR driver |
+
+### Models
+
+Linear Regression · XGBoost · LightGBM · MLP
+
+---
+
+## Intelligence Layer
+
+### Revenue at Risk
+```
+Revenue at Risk = P(cancel) × ADR × total_nights
+```
+Example: `P(cancel)=0.73, ADR=€112, nights=4` → **€326.56 at risk**
+
+### Overbooking Engine
+
+Based on the **Cornell Hotel School Cost-Ratio Method** (Talluri & van Ryzin, 2004).
+
+Cancellations modelled as **Poisson(λ)** where λ = Σ P(cancel_i) across all active bookings.
+
+```
+threshold_ratio = C_walk / (C_walk + C_empty)
+
+At balanced risk: C_walk = 2×ADR  →  threshold_ratio = 0.667
+
+Find largest N such that P(cancellations ≥ N) ≥ 0.667
+```
+
+**Risk tolerance dial:**
+
+| Setting | C_walk | Behaviour |
+|---------|--------|-----------|
+| 0.0 Conservative | 5× ADR | Minimise walk-outs |
+| 0.5 Balanced | 2× ADR | Standard hotel overbooking |
+| 1.0 Aggressive | 1× ADR | Maximise revenue |
+
+### SHAP Explainability
+
+| Model | Explainer |
+|-------|-----------|
+| XGBoost, LightGBM, RF, DT | `TreeExplainer` |
+| Logistic / Linear Regression | `LinearExplainer` |
+| MLP, CNN-1D | `KernelExplainer` |
+
+---
+
+## API Reference
+
+Base URL: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
+
+### `POST /predict-cancellation`
+
+```json
+{
+  "cancel_probability": 0.7341,
+  "cancel_prediction": true,
+  "risk_level": "HIGH",
+  "revenue_at_risk_eur": 326.56,
+  "predicted_adr_eur": 112.0,
+  "total_nights": 4,
+  "threshold_used": 0.46,
+  "model_name": "XGBoost",
+  "top_shap_factors": [
+    {"feature": "deposit_risk_score", "shap_value": 0.182},
+    {"feature": "lead_time",          "shap_value": 0.143},
+    {"feature": "cancel_rate_history","shap_value": -0.091}
+  ],
+  "explanation_text": "This booking has a HIGH cancel risk (73%)..."
+}
+```
+
+### `POST /predict-adr`
+
+```json
+{
+  "predicted_adr_eur": 118.5,
+  "confidence_interval_low": 94.8,
+  "confidence_interval_high": 142.2,
+  "model_name": "LightGBM"
+}
+```
+
+### `POST /overbooking-recommendation`
+
+```json
+{
+  "recommended_overbooking_buffer": 14,
+  "accept_bookings_up_to": 214,
+  "predicted_cancellations_mean": 74.0,
+  "probability_of_walking_guest_pct": 18.3,
+  "net_expected_gain_eur": 1618.0
+}
+```
+
+---
+
+## Quick Start
 
 ```bash
-# 1. Clone and enter the project
-git clone https://github.com/yourname/cancelshield.git
-cd cancelshield
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+# Place dataset at data/raw/hotel_bookings.csv
+python src/models/trainer.py
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-# 2. Download the dataset (Hotel Booking Demand — Kaggle)
-# Place hotel_bookings.csv in data/
-
-# 3. One-command start — all services
+Docker:
+```bash
 docker-compose up --build
 ```
 
-**Services after startup:**
+---
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| FastAPI Docs | http://localhost:8000/docs | Interactive API explorer |
-| Plotly Dash | http://localhost:8050 | Hotel manager dashboard |
-| MLflow UI | http://localhost:5000 | Experiment tracking |
-| PostgreSQL | localhost:5432 | MLflow metadata |
+## Tech Stack
+
+`scikit-learn` · `XGBoost` · `LightGBM` · `PyTorch` · `SHAP` · `FastAPI` · `Pydantic` · `MLflow` · `Optuna` ·  `Docker`
 
 ---
 
-## 🗂️ Project Structure
+## Key Design Decisions
 
-```
-cancelshield/
-├── src/
-│   ├── data/
-│   │   ├── loader.py          ← Load, validate schema, time-split
-│   │   └── features.py        ← Feature engineering (Module 1 + 2)
-│   ├── models/
-│   │   ├── trainer.py         ← Train all 7 classifiers + 4 regressors
-│   │   ├── evaluator.py       ← AUC, calibration, business metrics
-│   │   └── threshold_tuner.py ← F1 + cost-function threshold optimisation
-│   ├── intelligence/
-│   │   ├── explainer.py       ← SHAP global + local + plain English
-│   │   ├── revenue.py         ← EUR revenue at risk calculator
-│   │   └── overbooking.py     ← Cornell cost-ratio overbooking engine
-│   ├── api/
-│   │   └── main.py            ← FastAPI — 3 endpoints
-│   └── dashboard/
-│       └── app.py             ← Plotly Dash — 3 tabs
-├── notebooks/
-│   └── eda.ipynb              ← 16 visualisations, leakage identification
-├── tests/
-│   ├── test_features.py       ← 12 feature engineering tests
-│   └── test_models.py         ← 15 model + revenue tests
-├── config/
-│   └── config.yaml            ← All parameters in one place
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-```
+- **No data leakage** — `reservation_status` dropped before any split. Without this, a model trivially achieves ~100% AUC.
+- **Time-based split** — mirrors real deployment where the model trains on history and predicts future bookings.
+- **Separate feature sets per module** — Module 2 excludes all cancellation-related features to prevent cross-module leakage.
+- **Calibrated probabilities** — Platt scaling ensures probabilities are meaningful, not just ranked scores.
+- **Poisson approximation** — sum of independent Bernoulli(p_i) cancel indicators approximated analytically as Poisson(λ=Σp_i), the standard approach in hotel revenue management.
 
 ---
 
-## 🧠 ML Architecture
+## References
 
-### Module 1 — Cancellation Classifier
-Trains **7 models** and picks the best by validation AUC:
-- Logistic Regression (interpretable baseline)
-- **XGBoost** (primary — handles imbalance via `scale_pos_weight`)
-- LightGBM (faster alternative, often comparable AUC)
-- MLP Classifier (deep learning on tabular features)
-- Random Forest (robust, bagging ensemble)
-- Decision Tree (single tree, fully interpretable)
-- CNN-1D (1D convolution treating features as a sequence)
-
-**10 engineered features** including `cancel_rate_history`, `deposit_risk_score`, `booking_month_sin/cos`, `room_mismatch`, and more.
-
-### Module 2 — ADR Regressor
-Trains **4 models** and picks the best by validation MAE:
-- Linear Regression (baseline: ~35 EUR MAE)
-- XGBoost Regressor (~22 EUR MAE)
-- **LightGBM Regressor** (~21 EUR MAE — primary)
-- MLP Regressor (~24 EUR MAE)
-
-### Module 3 — Overbooking Engine
-Cornell cost-ratio method:
-```
-threshold = C_walk / (C_walk + C_empty) = 2/3 = 0.667
-Overbook by N where P(cancellations ≥ N) ≥ threshold
-Cancellations modelled as Poisson(λ = Σ P_i)
-```
-
----
-
-## 🔌 API Reference
-
-### POST `/predict-cancellation`
-```json
-{
-  "lead_time": 187,
-  "deposit_type": "No Deposit",
-  "distribution_channel": "TA/TO",
-  "previous_cancellations": 2,
-  "arrival_date_month": "August",
-  "adults": 2,
-  "stays_in_week_nights": 3
-}
-```
-Returns: `cancel_probability`, `risk_level`, `revenue_at_risk_eur`, `explanation_text`, `top_shap_factors`
-
-### POST `/predict-adr`
-Returns: `predicted_adr_eur`, `confidence_interval`, `shap_top_factors`
-
-### POST `/overbooking-recommendation`
-```json
-{
-  "arrival_date": "2024-08-15",
-  "hotel_capacity": 200,
-  "risk_tolerance": 0.5
-}
-```
-Returns: `recommended_overbooking_buffer`, `accept_bookings_up_to`, `expected_extra_revenue_eur`, `probability_of_walking_guest_pct`, `sensitivity_table`
-
----
-
-## 🧪 Running Tests
-
-```bash
-# All tests
-pytest tests/ -v
-
-# With coverage
-pytest tests/ --cov=src --cov-report=html
-
-# Specific module
-pytest tests/test_features.py -v
-pytest tests/test_models.py -v
-```
-
-**27 tests** covering: feature NaN checks, cyclical encoding bounds, AUC floors, revenue scaling, overbooking monotonicity, calibration validity.
-
----
-
-## 📊 MLflow Experiment Tracking
-
-Every training run logs:
-- **Parameters**: model type, hyperparameters, feature set version
-- **Metrics**: AUC-ROC, F1, Calibration ECE, MAE, R²
-- **Artifacts**: feature importance chart, ROC curve, calibration curve, confusion matrix
-
-```bash
-# View experiments
-open http://localhost:5000
-
-# Compare runs in UI → filter by metric → register best model
-```
-
----
-
-## 🔑 Key Design Decisions
-
-| Decision | Why |
-|----------|-----|
-| **Time-based split** | Random split leaks future booking patterns into training — inflates AUC artificially |
-| **AUC not accuracy** | 37% cancel rate means a "never cancel" model is 63% accurate but useless |
-| **Threshold tuning** | Default 0.5 is rarely optimal; cost function finds true business-optimal threshold |
-| **SHAP over LIME** | SHAP satisfies consistency axioms; TreeSHAP is fast enough for real-time serving |
-| **Poisson for overbooking** | Sum of independent Bernoulli(p_i) → Poisson(Σp_i) is exact in the Poisson limit |
-| **Separate feature sets** | Module 1 uses cancellation history features that would cause ADR leakage in Module 2 |
-
----
-
-## 📈 Expected Results
-  --- to be updated
-
-
+- Talluri & van Ryzin (2004). *The Theory and Practice of Revenue Management*. Springer.
+- Lundberg & Lee (2017). *A unified approach to interpreting model predictions*. NeurIPS.
+- Antonio et al. (2019). *Hotel booking demand datasets*. Data in Brief, 22.

@@ -196,7 +196,7 @@ def test_threshold_tuner_returns_valid_range():
     np.random.seed(0)
     y = np.random.binomial(1, 0.37, 1000)
     proba = np.clip(y * 0.7 + np.random.normal(0, 0.2, 1000), 0.01, 0.99)
-    result = tune_threshold(y, proba, method="cost", plot=False)
+    result = tune_threshold(y, proba, method="cost")
     t = result["recommended_threshold"]
     assert 0 <= t <= 1, f"Threshold out of range: {t}"
 
@@ -206,9 +206,9 @@ def test_threshold_tuner_returns_valid_range():
 # ---------------------------------------------------------------------------
 
 def test_calibration_ece_valid(trained_classifier):
-    from src.models.evaluator import plot_calibration_curve
+    from src.models.evaluator import caliberation
     model, X, y = trained_classifier
-    metrics = plot_calibration_curve(
+    metrics = caliberation(
         model, X.values, y.values, log_to_mlflow=False
     )
     ece = metrics.get("calibration_ece", -1)
@@ -278,10 +278,7 @@ def test_segment_revenue_risk_columns():
     assert len(result) == df["distribution_channel"].nunique()
 
 
-# ---------------------------------------------------------------------------
 # Test 15: Overbooking walk risk is between 0% and 100%
-# ---------------------------------------------------------------------------
-
 def test_overbooking_walk_risk_bounds():
     from src.intelligence.overbooking import optimal_overbook
 

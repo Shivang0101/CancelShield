@@ -1,7 +1,5 @@
 """
-src/models/threshold_tuner.py
-==============================
-CancelShield Threshold Tuner
+
 Finds the optimal decision threshold for a binary classifier using two modes:
 
 Mode 1 (F1 optimisation):    Maximise F1 score on validation set.
@@ -11,8 +9,7 @@ Mode 2 (Business cost function): Minimise total cost of missed cancellations
 Why not use 0.5?
 In this dataset, the cost of a missed cancellation (empty room = 1x ADR)
 is much higher than the cost of a false alarm (sending a retention email = ~€15).
-The optimal threshold is typically around 0.35-0.45, catching more cancellations
-at the price of slightly more false alarms.
+
 """
 
 import logging
@@ -30,20 +27,9 @@ def find_f1_optimal_threshold(
     n_thresholds: int = 200,
     beta: float = 1.0,
 ) -> Tuple[float, float]:
-    """
-    Find the threshold that maximises F-beta score on the provided data.
 
-    Parameters
-    ----------
-    y_true       : Ground truth binary labels (0 or 1)
-    y_proba      : Predicted probabilities from model
-    n_thresholds : Resolution of the threshold grid search
-    beta         : F-beta parameter. 1.0 = F1. 2.0 = F2 (recall-weighted).
-
-    Returns
-    -------
-    (best_threshold, best_f_score)
-    """
+#    Find the threshold that maximises F-beta score on the provided data.
+    
     thresholds = np.linspace(0.01, 0.99, n_thresholds)
     best_t, best_f = 0.5, 0.0
 
@@ -166,7 +152,6 @@ def tune_threshold(
       - f1_optimal             (from F1 method)
       - cost_optimal           (from cost method)
       - metrics_at_recommended (precision, recall, f1, at chosen threshold)
-      - sweep_data             (for plotting)
     """
     result = {}
 

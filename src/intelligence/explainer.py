@@ -1,7 +1,4 @@
 """
-src/intelligence/explainer.py
-==============================
-CancelShield SHAP Explainability Engine
 Global and local SHAP explanations for both Module 1 (classifier) and
 Module 2 (regressor), plus plain English explanation text generation.
  
@@ -26,9 +23,7 @@ import shap
 logger = logging.getLogger(__name__)
 
 
-# ===========================================================================
-# SHAP Explainer Factory
-# ===========================================================================
+# SHAP Explainer 
 
 def get_shap_explainer(model: Any, X_background: np.ndarray) -> shap.Explainer:
     """
@@ -70,10 +65,6 @@ def get_shap_explainer(model: Any, X_background: np.ndarray) -> shap.Explainer:
     return explainer
 
 
-# ===========================================================================
-# Global SHAP
-# ===========================================================================
-
 def global_shap(
     model: Any,
     X: pd.DataFrame,
@@ -88,14 +79,6 @@ def global_shap(
     Mean absolute SHAP value = average contribution magnitude across all
     predictions. The canonical 'global feature importance' for SHAP.
 
-    Parameters
-    ----------
-    X           : Feature DataFrame or array (will be sampled if large)
-    max_samples : Max rows to use for efficiency (2000 is usually sufficient)
-
-    Returns
-    -------
-    (shap_values_array, plot_path)
     """
     if isinstance(X, pd.DataFrame):
         if feature_names is None:
@@ -121,7 +104,7 @@ def global_shap(
     # Mean absolute SHAP per feature
     mean_abs_shap = np.abs(shap_values).mean(axis=0)
 
-    # ---- Plot ----
+    # Plot 
     if save_path is None:
         save_path = f"/tmp/global_shap_{model_name}.png"
 
@@ -145,10 +128,6 @@ def global_shap(
 
     return shap_values, save_path
 
-
-# ===========================================================================
-# Local SHAP (Single Booking)
-# ===========================================================================
 
 def local_shap(
     model: Any,
@@ -241,9 +220,7 @@ def local_shap(
     return shap_dict_sorted, save_path
 
 
-# ===========================================================================
 # SHAP Dependence Plot
-# ===========================================================================
 
 def shap_dependence(
     model: Any,
@@ -295,10 +272,6 @@ def shap_dependence(
 
     return save_path
 
-
-# ===========================================================================
-# Plain English Explanation Generator
-# ===========================================================================
 
 # Feature → human-readable phrase template
 FEATURE_PHRASES = {
@@ -407,10 +380,6 @@ def generate_explanation_text(
     explanation = f"{intro}\n\nKey factors:\n{factors_text}\n\n{action}"
     return explanation
 
-
-# ===========================================================================
-# SHAP Summary for Both Modules
-# ===========================================================================
 
 def explain_both_modules(
     clf_model: Any,

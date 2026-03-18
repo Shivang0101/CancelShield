@@ -1,7 +1,4 @@
 """
-src/data/loader.py
-==================
-CancelShield Data Loader
 Loads the Hotel Booking Demand dataset, validates schema,
 removes leakage columns, and performs time-based train/val/test split.
 
@@ -47,12 +44,10 @@ def validate_schema(df: pd.DataFrame, expected_columns: list) -> None:
 
 def remove_leakage(df: pd.DataFrame, leakage_cols: list = None) -> pd.DataFrame:
     """
-    Drop columns that encode the outcome AFTER the fact.
-    reservation_status   — directly says 'Canceled' / 'Check-Out'
-    reservation_status_date — the date of that status event
-
-    Including these would give a model 99%+ AUC and be completely useless
-    in production where predictions are made BEFORE the booking resolves.
+    Drop columns that encode the outcome .
+    reservation_status 
+    reservation_status_date 
+    assigned_room_type
     """
     if leakage_cols is None:
         leakage_cols = ["reservation_status", "reservation_status_date", "assigned_room_type"]
@@ -143,12 +138,6 @@ def build_arrival_date(df: pd.DataFrame) -> pd.DataFrame:
 
 def time_split(df: pd.DataFrame, config: dict = None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Split the dataset by arrival date — NOT by random index.
-
-    Why? Random splits allow 'future' bookings from 2017 to appear in
-    training data, inflating AUC because the model has seen the same
-    booking period from multiple angles.
-
     Split logic (configurable in config.yaml):
       Train : arrival_year <= 2016           (~67k rows, 2015-2016)
       Val   : arrival_year == 2017, month <= 6  (~24k rows, Jan-Jun 2017)
@@ -184,8 +173,7 @@ def get_splits(path: str = None) -> Dict[str, pd.DataFrame]:
     """
     Full pipeline: load → validate → remove leakage → split.
 
-    Returns
-    -------
+    Returns : 
     dict with keys: 'train', 'val', 'test', 'full'
     All DataFrames have leakage columns removed and arrival_date column added.
     """

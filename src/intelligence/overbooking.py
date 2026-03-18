@@ -1,8 +1,4 @@
 """
-src/intelligence/overbooking.py
-================================
-CancelShield Overbooking Recommendation Engine
-
 Algorithm: Cornell Hotel School Cost-Ratio Method
 Reference: Talluri & van Ryzin (2004), "The Theory and Practice of Revenue Management"
 
@@ -164,9 +160,7 @@ def optimal_overbook(
     return result
 
 
-# ===========================================================================
 # Overbooking Calendar (All Arrival Dates)
-# ===========================================================================
 
 def overbook_calendar(
     bookings_df: pd.DataFrame,
@@ -234,9 +228,7 @@ def overbook_calendar(
     return calendar_df
 
 
-# ===========================================================================
 # Revenue Impact Analysis
-# ===========================================================================
 
 def revenue_impact_analysis(
     buffer_range: range,
@@ -318,10 +310,7 @@ def sensitivity_analysis(
 
     return pd.DataFrame(rows)
 
-
-# ===========================================================================
 # Visualisation
-# ===========================================================================
 
 def plot_cancellation_distribution(
     cancel_proba: np.ndarray,

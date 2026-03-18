@@ -1,7 +1,4 @@
 """
-src/models/hpo.py
-=================
-CancelShield Hyperparameter Optimisation
 Tunes Random Forest, XGBoost, and LightGBM using Optuna.
 Overwrites best_classifier.pkl if the tuned model beats the current best.
 
@@ -13,7 +10,6 @@ Usage:
 After running:
     - Best tuned model saved to models/best_classifier.pkl (if better than current)
     - All trials logged to MLflow under experiment CancelShield_HPO
-    - Updated params printed to console → paste into config.yaml manually
 """
 
 import argparse
@@ -48,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ── Load data once ────────────────────────────────────────────────────────────
+# Load data once
 
 def load_data():
     splits = get_splits()
@@ -56,8 +52,6 @@ def load_data():
     X_v,  y_v,  _   = build_classification_features(splits["val"],   fit_encoders=False, encoders=enc)
     return X_tr.values, y_tr.values, X_v.values, y_v.values
 
-
-# ── Objective functions ───────────────────────────────────────────────────────
 
 def xgboost_objective(trial, X_tr, y_tr, X_v, y_v, scale_pos_weight):
     params = {
@@ -120,7 +114,7 @@ def random_forest_objective(trial, X_tr, y_tr, X_v, y_v):
     return roc_auc_score(y_v, model.predict_proba(X_v)[:, 1])
 
 
-# ── Refit best model on full train+val ───────────────────────────────────────
+# Refit best model on full train+val 
 
 def refit_best(model_name: str, best_params: dict, X_tr, y_tr, X_v, y_v, scale_pos_weight):
     """Refit the winner on train data and return fitted model + val_auc."""
@@ -164,7 +158,7 @@ def refit_best(model_name: str, best_params: dict, X_tr, y_tr, X_v, y_v, scale_p
     return model, val_auc, val_f1
 
 
-# ── Save if better than current best ─────────────────────────────────────────
+#  Save if better than current best 
 
 def save_if_better(model_name: str, model, val_auc: float, config: dict):
     """Compare with existing best_classifier.pkl and overwrite if better."""
@@ -187,7 +181,7 @@ def save_if_better(model_name: str, model, val_auc: float, config: dict):
             pickle.dump({
                 "name":    model_name,
                 "model":   model,
-                "scaler":  None,   # tree models don't need scaling
+                "scaler":  None,   
                 "val_auc": val_auc,
             }, f)
         logger.info("✓ New best saved: %s (AUC=%.4f) → models/best_classifier.pkl", model_name, val_auc)
@@ -216,7 +210,7 @@ def save_if_better(model_name: str, model, val_auc: float, config: dict):
         return False
 
 
-# ── Pretty print best params for config.yaml ─────────────────────────────────
+# Pretty print best params for config.yaml
 
 def print_yaml_snippet(model_name: str, best_params: dict):
     print(f"\n{'='*55}")
@@ -228,7 +222,7 @@ def print_yaml_snippet(model_name: str, best_params: dict):
     print(f"{'='*55}\n")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# Main 
 
 def run_hpo(models_to_tune: list, n_trials: int):
     config = load_config()
