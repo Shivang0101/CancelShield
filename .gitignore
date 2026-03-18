@@ -35,7 +35,7 @@ logs/
 .env
 .env.*
 *.env
-────
+
 tests/
 src/dashboard/app1.py
 
